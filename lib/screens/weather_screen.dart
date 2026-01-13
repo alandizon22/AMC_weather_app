@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/weather.dart';
+import 'dart:ui';
 import '../services/weather_service.dart';
 
 class WeatherScreen extends StatefulWidget {
@@ -10,53 +11,41 @@ class WeatherScreen extends StatefulWidget {
 }
 
 class _WeatherScreenState extends State<WeatherScreen> {
-  // Controller: Manages text input from the search field
   final TextEditingController _cityController = TextEditingController();
-
-  // Future: Holds the asynchronous weather data fetch
   late Future<Weather> weatherFuture;
-
-  // Flag: Track if this is the first load
   bool isFirstLoad = true;
 
   @override
   void initState() {
     super.initState();
-    // Load weather for London when app starts
     weatherFuture = WeatherService.getWeather('London');
   }
 
-  // Function: Handle search button press
   void _searchWeather() {
     final String city = _cityController.text.trim();
-
-    // Validate input: Don't allow empty searches
     if (city.isEmpty) {
-      _showSnackBar('Please enter a city name', Colors.orange);
+      _showSnackBar('Please enter a city name', Colors.orangeAccent);
       return;
     }
-
-    // Update the Future to fetch new weather data
     setState(() {
       weatherFuture = WeatherService.getWeather(city);
       isFirstLoad = false;
     });
   }
 
-  // Helper: Display notification messages
   void _showSnackBar(String message, Color backgroundColor) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message),
+        content: Text(message, style: const TextStyle(fontWeight: FontWeight.w600)),
         backgroundColor: backgroundColor,
-        duration: const Duration(seconds: 3),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
 
   @override
   void dispose() {
-    // Clean up: Always dispose controllers to prevent memory leaks
     _cityController.dispose();
     super.dispose();
   }
@@ -64,206 +53,195 @@ class _WeatherScreenState extends State<WeatherScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // App bar at the top
+      extendBodyBehindAppBar: true, // Allows gradient to show under status bar
       appBar: AppBar(
-        title: const Text('🌤️ Weather App'),
+        title: const Text(
+          'WEATHER FORECAST',
+          style: TextStyle(
+              fontWeight: FontWeight.w900,
+              letterSpacing: 2.0,
+              fontSize: 18,
+              color: Colors.white
+          ),
+        ),
         centerTitle: true,
         elevation: 0,
-        backgroundColor: Colors.blue.shade400,
+        backgroundColor: Colors.transparent,
       ),
-
-      // Main content area
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            // ===== SEARCH INPUT SECTION =====
-            Row(
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: BoxDecoration(
+          // Enhanced background color: Deep blue to light sky gradient
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.blue.shade900,
+              Colors.blue.shade500,
+              Colors.lightBlue.shade300,
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 10.0),
+            child: Column(
               children: [
-                // Text input field
-                Expanded(
-                  child: TextField(
-                    controller: _cityController,
-                    decoration: InputDecoration(
-                      hintText: 'Enter city name...',
-                      prefixIcon: const Icon(Icons.location_city),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
+                // ===== ENHANCED SEARCH BAR =====
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(25),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 5),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _cityController,
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+                          decoration: const InputDecoration(
+                            hintText: 'Search city...',
+                            hintStyle: TextStyle(color: Colors.white70),
+                            border: InputBorder.none,
+                            icon: Icon(Icons.search, color: Colors.white70),
+                          ),
+                          onSubmitted: (_) => _searchWeather(),
+                        ),
                       ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 12,
-                      ),
-                    ),
-                    // Allow pressing Enter to search
-                    onSubmitted: (_) => _searchWeather(),
+                      IconButton(
+                        onPressed: _searchWeather,
+                        icon: const Icon(Icons.send, color: Colors.white),
+                      )
+                    ],
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(height: 40),
 
-                // Search button
-                ElevatedButton.icon(
-                  onPressed: _searchWeather,
-                  icon: const Icon(Icons.search),
-                  label: const Text('Search'),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 16,
-                    ),
-                    backgroundColor: Colors.blue.shade400,
-                  ),
+                // ===== WEATHER DISPLAY SECTION =====
+                FutureBuilder<Weather>(
+                  future: weatherFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator(color: Colors.white));
+                    }
+
+                    if (snapshot.hasError) {
+                      return _buildErrorWidget(snapshot.error.toString());
+                    }
+
+                    if (snapshot.hasData) {
+                      final weather = snapshot.data!;
+                      return Column(
+                        children: [
+                          _buildGlassCard(
+                            child: Column(
+                              children: [
+                                // City Name: Wide spacing, light weight
+                                Text(
+                                  weather.cityName.toUpperCase(),
+                                  style: const TextStyle(
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.w300,
+                                    color: Colors.white,
+                                    letterSpacing: 5,
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+
+                                // Temperature: Large, Bold focus
+                                Text(
+                                  '${weather.temperature.toStringAsFixed(0)}°',
+                                  style: const TextStyle(
+                                    fontSize: 100,
+                                    fontWeight: FontWeight.w200, // Thin modern look
+                                    color: Colors.white,
+                                  ),
+                                ),
+
+                                // Condition
+                                Text(
+                                  weather.condition.toUpperCase(),
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white70,
+                                    letterSpacing: 2,
+                                  ),
+                                ),
+                                const SizedBox(height: 40),
+
+                                // Additional Info Row
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                                  children: [
+                                    _buildDetailColumn(Icons.water_drop, '${weather.humidity}%', 'HUMIDITY'),
+                                    _buildDetailColumn(Icons.air, '${weather.windSpeed} m/s', 'WIND'),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      );
+                    }
+                    return const Text('Search for a city', style: TextStyle(color: Colors.white));
+                  },
                 ),
               ],
             ),
-            const SizedBox(height: 24),
-
-            // ===== WEATHER DISPLAY SECTION =====
-            FutureBuilder<Weather>(
-              future: weatherFuture,
-              builder: (context, snapshot) {
-                // STATE 1: Loading
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(),
-                  );
-                }
-
-                // STATE 2: Error
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Column(
-                      children: [
-                        const Icon(
-                          Icons.error_outline,
-                          color: Colors.red,
-                          size: 48,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          snapshot.error.toString().replaceFirst('Exception: ', ''),
-                          style: const TextStyle(
-                            color: Colors.red,
-                            fontSize: 16,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                // STATE 3: Success
-                if (snapshot.hasData) {
-                  final weather = snapshot.data!;
-                  return Container(
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [Colors.blue.shade300, Colors.blue.shade600],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Column(
-                      children: [
-                        // City name
-                        Text(
-                          weather.cityName,
-                          style: const TextStyle(
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-
-                        // Temperature (main focus)
-                        Text(
-                          '${weather.temperature.toStringAsFixed(1)}°C',
-                          style: const TextStyle(
-                            fontSize: 64,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-
-                        // Weather description
-                        Text(
-                          weather.condition,
-                          style: const TextStyle(
-                            fontSize: 20,
-                            color: Colors.white70,
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-
-                        // Additional info (Humidity & Wind)
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: [
-                            WeatherInfoCard(
-                              icon: Icons.opacity,
-                              label: 'Humidity',
-                              value: '${weather.humidity}%',
-                            ),
-                            WeatherInfoCard(
-                              icon: Icons.air,
-                              label: 'Wind Speed',
-                              value: '${weather.windSpeed.toStringAsFixed(1)} m/s',
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                // STATE 4: No data
-                return const Center(
-                  child: Text('No data available'),
-                );
-              },
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
-}
 
-// ===== REUSABLE WIDGET =====
-class WeatherInfoCard extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
+  // GLASSMORPHISM HELPER WIDGET
+  Widget _buildGlassCard({required Widget child}) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(30),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(color: Colors.white.withOpacity(0.2)),
+          ),
+          child: child,
+        ),
+      ),
+    );
+  }
 
-  const WeatherInfoCard({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildDetailColumn(IconData icon, String value, String label) {
     return Column(
       children: [
-        Icon(icon, color: Colors.white, size: 32),
+        Icon(icon, color: Colors.white, size: 28),
         const SizedBox(height: 8),
         Text(
-          label,
-          style: const TextStyle(color: Colors.white70, fontSize: 12),
+            value,
+            style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)
         ),
-        const SizedBox(height: 4),
         Text(
-          value,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
+            label,
+            style: const TextStyle(color: Colors.white60, fontSize: 10, letterSpacing: 1)
+        ),
+      ],
+    );
+  }
+
+  Widget _buildErrorWidget(String error) {
+    return Column(
+      children: [
+        const Icon(Icons.cloud_off, size: 80, color: Colors.white54),
+        const SizedBox(height: 20),
+        Text(
+          error.contains('404') ? 'CITY NOT FOUND' : 'SOMETHING WENT WRONG',
+          style: const TextStyle(color: Colors.white, fontSize: 16, letterSpacing: 2),
         ),
       ],
     );
